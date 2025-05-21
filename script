@@ -1,0 +1,175 @@
+Sub PreencherDadosRembrandt()
+
+    Dim wsOrigem As Worksheet, wsDestino As Worksheet
+    Dim ultimaLinhaOrigem As Long, ultimaLinhaDestino As Long
+    Dim linhaDestino As Long, linhaOrigem As Long
+    Dim nomeBusca As String
+    Dim i As Long, j As Long, k As Long
+    Dim inicioBloco As Long, fimBloco As Long
+    Dim criterio As Variant
+    Dim valor As Double
+    Dim nomeAtual As String
+    Dim criteriosHorasExtras As Variant, criteriosVerbasResc As Variant
+    Dim linhaNomeOrigem As Long
+    Dim celula As Range
+    Dim bloco() As Variant
+
+    Set wsOrigem = ThisWorkbook.Sheets("Planilha2")
+    Set wsDestino = ThisWorkbook.Sheets("WP Jan")
+    
+    ultimaLinhaDestino = wsDestino.Cells(wsDestino.Rows.Count, "B").End(xlUp).Row
+    ultimaLinhaOrigem = wsOrigem.Cells(wsOrigem.Rows.Count, "C").End(xlUp).Row
+
+    criteriosHorasExtras = Array("200 HORAS EXTRAS 100%", "8125 REFLEXO HORAS EXTRAS D")
+    criteriosVerbasResc = Array("LIQUIDO RESCISAO", "LIQUIDO RESCISAO ESTAGIARIO", "MULTA ESTABILIDADE Art. 480/CLT", "AVISO PREVIO REAVIDO")
+
+    ' Loop pelos nomes da planilha de destino
+    For linhaDestino = 2 To ultimaLinhaDestino
+        nomeBusca = Trim(wsDestino.Cells(linhaDestino, "B").Value)
+        If nomeBusca = "" Then GoTo Proximo
+
+        ' Procurar nome na coluna C da origem
+        inicioBloco = 0
+        For linhaOrigem = 1 To ultimaLinhaOrigem
+            If Trim(wsOrigem.Cells(linhaOrigem, "C").Value) = nomeBusca Then
+                inicioBloco = linhaOrigem
+                Exit For
+            End If
+        Next linhaOrigem
+
+        If inicioBloco = 0 Then GoTo Proximo ' Nome não encontrado
+
+        ' Encontrar fim do bloco (próximo nome)
+        fimBloco = ultimaLinhaOrigem
+        For j = inicioBloco + 1 To ultimaLinhaOrigem
+            If Trim(wsOrigem.Cells(j, "C").Value) <> "" And _
+               Trim(wsOrigem.Cells(j, "A").Value) Like "Empr.*" Then
+                fimBloco = j - 1
+                Exit For
+            End If
+        Next j
+
+        ' CARGO: buscar critério "Cargo:" na coluna A e pegar valor da C
+        For j = inicioBloco To fimBloco
+            If LCase(wsOrigem.Cells(j, "A").Value) Like "*cargo:*" Then
+                wsDestino.Cells(linhaDestino, "C").Value = wsOrigem.Cells(j, "C").Value
+                Exit For
+            End If
+        Next j
+
+        ' COMPETÊNCIA: preencher com "Janeiro"
+        wsDestino.Cells(linhaDestino, "D").Value = "Janeiro"
+
+        ' HORAS TRABALHADAS: buscar critérios com "HORA AULA"
+        For j = inicioBloco To fimBloco
+            If InStr(1, UCase(wsOrigem.Cells(j, "C").Value), "HORA AULA") > 0 Then
+                wsDestino.Cells(linhaDestino, "E").Value = wsOrigem.Cells(j, "E").Value
+                Exit For
+            End If
+        Next j
+
+        ' HORAS NORMAIS
+        For j = inicioBloco To fimBloco
+            If Trim(UCase(wsOrigem.Cells(j, "C").Value)) = "1 HORAS NORMAIS" Then
+                wsDestino.Cells(linhaDestino, "F").Value = wsOrigem.Cells(j, "E").Value
+                Exit For
+            End If
+        Next j
+
+        ' H.E. — somar horas extras e reflexo
+        valor = 0
+        For j = inicioBloco To fimBloco
+            For Each criterio In criteriosHorasExtras
+                If Trim(UCase(wsOrigem.Cells(j, "C").Value)) = criterio Then
+                    valor = valor + Val(wsOrigem.Cells(j, "E").Value)
+                End If
+            Next criterio
+        Next j
+        wsDestino.Cells(linhaDestino, "G").Value = valor
+
+        ' SAL. FAMÍLIA
+        For j = inicioBloco To fimBloco
+            If Trim(UCase(wsOrigem.Cells(j, "C").Value)) = "995 SALARIO FAMILIA" Then
+                wsDestino.Cells(linhaDestino, "H").Value = wsOrigem.Cells(j, "E").Value
+                Exit For
+            End If
+        Next j
+
+        ' DSR Prof. Aulista
+        For j = inicioBloco To fimBloco
+            If Trim(UCase(wsOrigem.Cells(j, "C").Value)) = "8066 DSR PROFESSOR AULISTA" Then
+                wsDestino.Cells(linhaDestino, "I").Value = wsOrigem.Cells(j, "E").Value
+                Exit For
+            End If
+        Next j
+
+        ' Adc. Titulação
+        For j = inicioBloco To fimBloco
+            If Trim(UCase(wsOrigem.Cells(j, "C").Value)) = "224 ADICIONAL DE TITULACAO" Then
+                wsDestino.Cells(linhaDestino, "J").Value = wsOrigem.Cells(j, "E").Value
+                Exit For
+            End If
+        Next j
+
+        ' Comissões
+        For j = inicioBloco To fimBloco
+            If Trim(UCase(wsOrigem.Cells(j, "C").Value)) = "37 COMISSOES" Then
+                wsDestino.Cells(linhaDestino, "K").Value = wsOrigem.Cells(j, "E").Value
+            ElseIf Trim(UCase(wsOrigem.Cells(j, "C").Value)) = "9662 COMISSOES REFLEXO DSR" Then
+                wsDestino.Cells(linhaDestino, "L").Value = wsOrigem.Cells(j, "E").Value
+            End If
+        Next j
+
+        ' Verbas Rescisórias
+        If InStr(1, UCase(wsOrigem.Cells(inicioBloco, "D").Value), "DEMITIDO") > 0 Then
+            valor = 0
+            For j = inicioBloco To fimBloco
+                If IsNumeric(wsOrigem.Cells(j, "E").Value) Then
+                    valor = valor + wsOrigem.Cells(j, "E").Value
+                End If
+            Next j
+            wsDestino.Cells(linhaDestino, "M").Value = valor
+        End If
+
+        ' (-) Rescisão
+        If InStr(1, UCase(wsOrigem.Cells(inicioBloco, "D").Value), "FERIAS") > 0 Then
+            valor = 0
+            For j = inicioBloco To fimBloco
+                If IsNumeric(wsOrigem.Cells(j, "E").Value) Then
+                    valor = valor + wsOrigem.Cells(j, "E").Value
+                End If
+            Next j
+            wsDestino.Cells(linhaDestino, "N").Value = valor
+        End If
+
+        ' (-) Valores na Coluna J conforme critérios na Coluna G
+        For j = inicioBloco To fimBloco
+            Select Case True
+                Case UCase(wsOrigem.Cells(j, "G").Value) Like "*LIQUIDO RESCISAO*" Or _
+                     UCase(wsOrigem.Cells(j, "G").Value) Like "*LIQUIDO RESCISAO ESTAGIARIO*" Or _
+                     UCase(wsOrigem.Cells(j, "G").Value) Like "*MULTA ESTABILIDADE*" Or _
+                     UCase(wsOrigem.Cells(j, "G").Value) Like "*AVISO PREVIO*"
+                    wsDestino.Cells(linhaDestino, "O").Value = wsDestino.Cells(linhaDestino, "O").Value + Val(wsOrigem.Cells(j, "J").Value)
+                Case UCase(wsOrigem.Cells(j, "G").Value) Like "*DIAS NÃO TRABALHADOS*"
+                    wsDestino.Cells(linhaDestino, "P").Value = wsDestino.Cells(linhaDestino, "P").Value + Val(wsOrigem.Cells(j, "J").Value)
+                Case UCase(wsOrigem.Cells(j, "G").Value) Like "*CONS.*"
+                    wsDestino.Cells(linhaDestino, "Q").Value = wsDestino.Cells(linhaDestino, "Q").Value + Val(wsOrigem.Cells(j, "J").Value)
+                Case UCase(wsOrigem.Cells(j, "G").Value) Like "*RENDA*"
+                    wsDestino.Cells(linhaDestino, "R").Value = wsDestino.Cells(linhaDestino, "R").Value + Val(wsOrigem.Cells(j, "J").Value)
+                Case UCase(wsOrigem.Cells(j, "G").Value) Like "*INSS*"
+                    wsDestino.Cells(linhaDestino, "S").Value = wsDestino.Cells(linhaDestino, "S").Value + Val(wsOrigem.Cells(j, "J").Value)
+                Case UCase(wsOrigem.Cells(j, "G").Value) Like "*TRANSPORTE*"
+                    wsDestino.Cells(linhaDestino, "T").Value = wsDestino.Cells(linhaDestino, "T").Value + Val(wsOrigem.Cells(j, "J").Value)
+                Case UCase(wsOrigem.Cells(j, "G").Value) Like "*VALE ALIMENTACAO*"
+                    wsDestino.Cells(linhaDestino, "U").Value = wsDestino.Cells(linhaDestino, "U").Value + Val(wsOrigem.Cells(j, "J").Value)
+            End Select
+        Next j
+
+Proximo:
+    Next linhaDestino
+
+    MsgBox "Preenchimento concluído!"
+
+End Sub
+
+
